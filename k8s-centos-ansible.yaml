@@ -1,0 +1,118 @@
+---
+- hosts: "controller, workers"
+  become: yes
+  tasks:
+
+    - name: Disable firewalld service
+      systemd:
+        name: firewalld
+        state: stopped
+        enabled: no
+
+    - name: Enable and start Chrony
+      systemd:
+        name: chronyd
+        state: started
+        enabled: yes
+
+    - name: Disable swap on all nodes
+      lineinfile:
+        path: /etc/fstab
+        regexp: '(^/.*swap*)'
+        line: '# \1'
+        backrefs: yes
+
+    - name: Ensure br_netfilter is enabled
+      modprobe:
+        name: br_netfilter
+        state: present
+
+    - name: Update kernel settings
+      sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: 1
+        sysctl_set: yes
+        state: present
+        reload: yes
+
+    - name: Install Docker prerequisite packages
+      dnf:
+        name: yum-utils
+        state: present
+
+    - name: Configure YUM repository for Docker
+      command: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+      args:
+        creates: /etc/yum.repos.d/docker-ce.repo
+
+    - name: Install Docker latest version
+      dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Comment out disabled_plugins in /etc/containerd/config.toml
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: '^disabled_plugins'
+        replace: '# disabled_plugins'
+      notify: Restart containerd
+
+    - name: Set endpoints for crictl
+      copy:
+        dest: /etc/crictl.yaml
+        content: |
+          runtime-endpoint: unix:///var/run/containerd/containerd.sock
+          image-endpoint: unix:///var/run/containerd/containerd.sock
+          timeout: 10
+
+    - name: Start and enable containerd service
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add Kubernetes repository
+      copy:
+        dest: /etc/yum.repos.d/kubernetes.repo
+        content: |
+          [kubernetes]
+          name=Kubernetes
+          baseurl=https://pkgs.k8s.io/core:/stable:/v1.28/rpm/
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key
+
+    - name: Install kubeadm, kubelet, and kubectl
+      dnf:
+        name:
+          - kubeadm
+          - kubelet
+          - kubectl
+        state: present
+      notify: Restart kubelet
+
+    - name: Start and enable kubelet service
+      systemd:
+        name: kubelet
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+
+    - name: Restart kubelet
+      systemd:
+        name: kubelet
+        state: restarted
