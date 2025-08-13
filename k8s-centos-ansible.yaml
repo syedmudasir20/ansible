@@ -22,7 +22,7 @@
         line: '# \1'
         backrefs: yes
 
-    - name: Ensure br_netfilter is enabled
+    - name: Ensure br_netfilter kernal is enabled
       modprobe:
         name: br_netfilter
         state: present
