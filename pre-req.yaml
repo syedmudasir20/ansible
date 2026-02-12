@@ -1,5 +1,5 @@
 ---
-- hosts: "add your own"
+- hosts: "Pre req k8s"
   become: yes
   tasks:
 
