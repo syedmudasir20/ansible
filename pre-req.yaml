@@ -45,7 +45,7 @@
         state: present
     - name: Install Docker prerequisite packages
       dnf:
-        name: conntrack-tool
+        name: conntrack-tools
         state: present
 
 
