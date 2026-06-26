@@ -1,0 +1,119 @@
+---
+- name: Completely remove Kubernetes and containerd setup
+  hosts: "controller, workers"
+  become: yes
+
+  tasks:
+
+    - name: Stop kubelet service
+      ansible.builtin.service:
+        name: kubelet
+        state: stopped
+        enabled: false
+      ignore_errors: yes
+
+    - name: Stop containerd service
+      ansible.builtin.service:
+        name: containerd
+        state: stopped
+        enabled: false
+      ignore_errors: yes
+
+    - name: Reset kubeadm cluster
+      ansible.builtin.command: kubeadm reset -f
+      ignore_errors: yes
+
+    - name: Remove Kubernetes packages
+      ansible.builtin.yum:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+          - cri-tools
+          - kubernetes-cni
+        state: absent
+        disable_excludes: kubernetes
+      ignore_errors: yes
+
+    - name: Remove containerd package
+      ansible.builtin.yum:
+        name:
+          - containerd.io
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove Docker CE repository file
+      ansible.builtin.file:
+        path: /etc/yum.repos.d/docker-ce.repo
+        state: absent
+
+    - name: Remove Kubernetes repository file
+      ansible.builtin.file:
+        path: /etc/yum.repos.d/kubernetes.repo
+        state: absent
+
+    - name: Remove containerd configuration directory
+      ansible.builtin.file:
+        path: /etc/containerd
+        state: absent
+
+    - name: Remove crictl configuration
+      ansible.builtin.file:
+        path: /etc/crictl.yaml
+        state: absent
+
+    - name: Remove Kubernetes sysctl config
+      ansible.builtin.file:
+        path: /etc/sysctl.d/kubernetes.conf
+        state: absent
+
+    - name: Remove Kubernetes module load config
+      ansible.builtin.file:
+        path: /etc/modules-load.d/k8s.conf
+        state: absent
+
+    - name: Remove Kubernetes directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes
+        - /var/lib/kubelet
+        - /var/lib/etcd
+        - /var/lib/cni
+        - /etc/cni
+        - /opt/cni
+        - /run/flannel
+        - /var/run/calico
+        - /var/lib/calico
+        - /var/lib/containerd
+        - /run/containerd
+
+    - name: Remove kube config from root user
+      ansible.builtin.file:
+        path: /root/.kube
+        state: absent
+
+    - name: Remove kube config from normal users
+      ansible.builtin.shell: |
+        rm -rf /home/*/.kube
+      args:
+        warn: false
+      ignore_errors: yes
+
+    - name: Clean yum cache
+      ansible.builtin.command: yum clean all
+      ignore_errors: yes
+
+    - name: Apply sysctl after cleanup
+      ansible.builtin.command: sysctl --system
+      ignore_errors: yes
+
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Reboot all nodes after cleanup
+      ansible.builtin.reboot:
+        msg: "Rebooting after Kubernetes/containerd cleanup"
+        reboot_timeout: 600
