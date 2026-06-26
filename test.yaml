@@ -1,10 +1,25 @@
 ---
-- name: awx test playbook
+- name: Gather facts from all servers
   hosts: all
-  become: yes    
+  gather_facts: yes
+
   tasks:
-    - name: Run demo task on pinging servers only
-      ping:
-    - name: debug task
-      debug:
-        msg: "{{ ansible_facts }}" 
+    - name: Display hostname
+      ansible.builtin.debug:
+        msg: "Hostname is {{ ansible_hostname }}"
+
+    - name: Display OS
+      ansible.builtin.debug:
+        msg: "OS is {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: Display IP address
+      ansible.builtin.debug:
+        msg: "IP is {{ ansible_default_ipv4.address }}"
+
+    - name: Display CPU cores
+      ansible.builtin.debug:
+        msg: "CPU cores: {{ ansible_processor_vcpus }}"
+
+    - name: Display total memory
+      ansible.builtin.debug:
+        msg: "RAM: {{ ansible_memtotal_mb }} MB" 
